@@ -91,6 +91,9 @@ class Broker
 	/** @var bool[] */
 	private $hasClassCache;
 
+	/** @var bool[] */
+	private $brokenClassCache;
+
 	/** @var NativeFunctionReflection[] */
 	private static $functionMap = [];
 
@@ -356,14 +359,17 @@ class Broker
 
 		spl_autoload_register($autoloader = function (string $autoloadedClassName) use ($className): void {
 			if ($autoloadedClassName !== $className && !$this->isExistsCheckCall()) {
-				throw new \PHPStan\Broker\ClassAutoloadingException($autoloadedClassName);
+				$this->brokenClassCache[$autoloadedClassName] = TRUE;
 			}
 		});
 
 		try {
-			return $this->hasClassCache[$className] = class_exists($className) || interface_exists($className) || trait_exists($className);
-		} catch (\PHPStan\Broker\ClassAutoloadingException $e) {
-			throw $e;
+		  $exists = class_exists($className) || interface_exists($className) || trait_exists($className);
+		  if (!empty($this->brokenClassCache[$autoloadedClassName])) {
+		    $exists = FALSE;
+		    throw new PHPStan\Broker\ClassAutoloadingException($autoloadedClassName);
+      }
+			return $this->hasClassCache[$className] = $this->hasClassCache[$className];
 		} catch (\Throwable $t) {
 			throw new \PHPStan\Broker\ClassAutoloadingException(
 				$className,
